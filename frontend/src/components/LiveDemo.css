@@ -107,26 +107,55 @@
   margin-top: 4px;
 }
 
-.caption-log {
+.transcription-panel {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.caption-log {
   background-color: var(--bg-secondary);
   border: var(--border-width) solid var(--border-color);
   padding: var(--spacing-md);
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
 
-.caption-log h3 {
-  font-size: 1rem;
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: var(--spacing-md);
   padding-bottom: var(--spacing-sm);
   border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.log-header h3 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.clear-btn {
+  font-size: 0.8rem;
+  padding: 4px 12px;
+  background-color: var(--bg-primary);
+  color: var(--error-color);
+  border-color: var(--border-color);
+}
+
+.clear-btn:hover {
+  background-color: var(--error-color);
+  color: var(--bg-primary);
 }
 
 .log-entries {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
+  max-height: 250px;
+  overflow-y: auto;
 }
 
 .log-entry {
@@ -141,4 +170,66 @@
   color: var(--text-secondary);
   font-style: italic;
   font-size: 0.9rem;
+}
+
+.translation-box {
+  background-color: var(--bg-secondary);
+  border: var(--border-width) solid var(--border-color);
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.translate-btn {
+  background-color: var(--accent-color);
+  color: var(--bg-primary);
+  font-weight: bold;
+  font-size: 1rem;
+  padding: var(--spacing-md);
+  border: none;
+}
+
+.translate-btn:hover:not(:disabled) {
+  background-color: var(--text-primary);
+}
+
+.translate-btn:disabled {
+  background-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.translation-output {
+  min-height: 60px;
+  background-color: var(--bg-primary);
+  border: var(--border-width) solid var(--border-color);
+  padding: var(--spacing-md);
+  display: flex;
+  align-items: center;
+}
+
+.translated-text {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--success-color);
+  margin: 0;
+}
+
+.empty-translation {
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+
+.overlay-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+  transform: scaleX(-1);
 }

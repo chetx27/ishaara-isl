@@ -61,7 +61,7 @@ class LiveExtractor:
                 
         # Normalization
         if np.isnan(frame_data[11, 0]) or np.isnan(frame_data[12, 0]):
-            return np.zeros(NUM_FEATURES, dtype=np.float32), False
+            return np.zeros(NUM_FEATURES, dtype=np.float32), False, []
             
         left_shoulder = frame_data[11]
         right_shoulder = frame_data[12]
@@ -74,13 +74,21 @@ class LiveExtractor:
         norm_frame = (frame_data - shoulder_midpoint) / shoulder_width
         flat_features = norm_frame.flatten()
         
-        # Check validity (e.g. if hands are missing, it's partially invalid)
-        is_valid = not np.isnan(flat_features).any()
+        # In ISL, one hand may be occluded or out of frame.
+        # We consider the frame valid as long as pose is detected (which we verified above)
+        # and at least one hand is detected.
+        has_left = results.left_hand_landmarks is not None
+        has_right = results.right_hand_landmarks is not None
+        is_valid = has_left or has_right
         
         # Zero-fill for the model input
         flat_features = np.nan_to_num(flat_features, nan=0.0)
         
-        return flat_features.astype(np.float32), is_valid
+        # We can also return the raw landmarks for visual mapping on the frontend if needed
+        raw_landmarks = frame_data[:, :2] # Just x, y for drawing
+        raw_landmarks = np.nan_to_num(raw_landmarks, nan=-1.0).tolist()
+        
+        return flat_features.astype(np.float32), is_valid, raw_landmarks
 
     def close(self):
         self.holistic.close()

@@ -42,7 +42,7 @@ app.add_middleware(
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MODEL = None
 CLASS_NAMES = []
-CONFIDENCE_THRESHOLD = 0.65  # Calibrated threshold
+CONFIDENCE_THRESHOLD = 0.0  # Temporarily 0.0 so untrained model still returns predictions for demo
 MAX_SEQ_LEN = 200
 
 def load_model():
@@ -92,8 +92,31 @@ async def websocket_endpoint(websocket: WebSocket):
     motion_history = []
     
     # Motion threshold to determine end of sign
-    MOTION_THRESHOLD = 0.05
+    MOTION_THRESHOLD = 0.15
     K_FRAMES = 5
+    
+    async def trigger_inference(buffer):
+        input_tensor = torch.tensor(np.array([buffer]), dtype=torch.float32).to(DEVICE)
+        mask = torch.ones((1, len(buffer)), dtype=torch.float32).to(DEVICE)
+        
+        with torch.no_grad():
+            outputs = MODEL(input_tensor, mask)
+            probs = torch.nn.functional.softmax(outputs, dim=1)
+            conf, pred = torch.max(probs, 1)
+            
+        conf_val = conf.item()
+        pred_idx = pred.item()
+        
+        if conf_val >= CONFIDENCE_THRESHOLD:
+            detected_sign = CLASS_NAMES[pred_idx]
+        else:
+            detected_sign = "NOT_CONFIDENT"
+            
+        await websocket.send_json({
+            "status": "success",
+            "sign": detected_sign,
+            "confidence": conf_val
+        })
     
     try:
         while True:
@@ -108,7 +131,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 
                 # Extract landmarks
-                features, is_valid = extractor.process_frame(frame)
+                features, is_valid, raw_landmarks = extractor.process_frame(frame)
                 
                 if is_valid:
                     landmark_buffer.append(features)
@@ -118,35 +141,28 @@ async def websocket_endpoint(websocket: WebSocket):
                     if len(motion_history) > K_FRAMES:
                         motion_history.pop(0)
                         
+                    # Send ONLY hand landmarks (indices 33 to 75) to frontend
+                    hand_landmarks = raw_landmarks[33:75]
+                    await websocket.send_json({
+                        "status": "tracking",
+                        "landmarks": hand_landmarks
+                    })
+                    
                     # Trigger inference if motion stops or buffer fills
-                    if len(landmark_buffer) >= 15 and (np.mean(motion_history) < MOTION_THRESHOLD or len(landmark_buffer) >= MAX_SEQ_LEN):
-                        
-                        input_tensor = torch.tensor(np.array([landmark_buffer]), dtype=torch.float32).to(DEVICE)
-                        mask = torch.ones((1, len(landmark_buffer)), dtype=torch.float32).to(DEVICE)
-                        
-                        with torch.no_grad():
-                            outputs = MODEL(input_tensor, mask)
-                            probs = torch.nn.functional.softmax(outputs, dim=1)
-                            conf, pred = torch.max(probs, 1)
-                            
-                        conf_val = conf.item()
-                        pred_idx = pred.item()
-                        
-                        if conf_val >= CONFIDENCE_THRESHOLD:
-                            detected_sign = CLASS_NAMES[pred_idx]
-                        else:
-                            detected_sign = "NOT_CONFIDENT"
-                            
-                        await websocket.send_json({
-                            "status": "success",
-                            "sign": detected_sign,
-                            "confidence": conf_val
-                        })
-                        
+                    if len(landmark_buffer) >= 8 and (np.mean(motion_history) < MOTION_THRESHOLD or len(landmark_buffer) >= MAX_SEQ_LEN):
+                        await trigger_inference(landmark_buffer)
                         # Reset buffer after sign prediction
                         landmark_buffer = []
                         motion_history = []
                 else:
+                    # Hands dropped - trigger inference if we have enough frames buffered
+                    if len(landmark_buffer) >= 8:
+                        await trigger_inference(landmark_buffer)
+                    
+                    # Reset buffer because hands dropped
+                    landmark_buffer = []
+                    motion_history = []
+                    
                     await websocket.send_json({
                         "status": "error",
                         "message": "NO_HAND_DETECTED"
@@ -159,6 +175,29 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"WS Error: {e}")
         manager.disconnect(websocket)
         extractor.close()
+
+from pydantic import BaseModel
+class TranslationRequest(BaseModel):
+    glosses: List[str]
+
+@app.post("/api/translate")
+async def translate_glosses(req: TranslationRequest):
+    # Mocking T5 Gloss-to-Text inference since model isn't trained yet
+    joined = " ".join(req.glosses).upper()
+    
+    mock_dict = {
+        "I APPLE EAT": "I am eating an apple.",
+        "YOUR NAME WHAT": "What is your name?",
+        "TOMORROW I MARKET GO": "I will go to the market tomorrow.",
+        "BOY RUN": "The boy is running.",
+        "I KNOW NOT": "I do not know."
+    }
+    
+    if joined in mock_dict:
+        return {"english": mock_dict[joined]}
+    else:
+        # Fallback pseudo-translation if not in mock dict
+        return {"english": f"Translated sentence for: {joined.lower()}"}
 
 if __name__ == "__main__":
     import uvicorn
