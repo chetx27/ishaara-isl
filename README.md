@@ -47,5 +47,3 @@ The frontend is built with React + Vite + TypeScript.
 - Explicit and real error states (e.g., "NO_HAND_DETECTED", "NOT_CONFIDENT") instead of generic loading spinners.
 - No emojis are used in the codebase, UI, or documentation to maintain professional strictness.
 
-## License
-Code is provided under the MIT License. Data used (INCLUDE) is subject to its respective AI4Bharat academic license.
